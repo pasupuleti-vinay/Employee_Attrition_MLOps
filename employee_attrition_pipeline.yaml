@@ -1,0 +1,185 @@
+# PIPELINE DEFINITION
+# Name: employee-attrition-mlops
+components:
+  comp-evaluate-model:
+    executorLabel: exec-evaluate-model
+    inputDefinitions:
+      parameters:
+        training_result:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      parameters:
+        validation_result:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+  comp-validate-data:
+    executorLabel: exec-validate-data
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-evaluate-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - evaluate_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.17.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef evaluate_model(training_result: str) -> str:\n    import os\n\
+          \    import joblib\n    import pandas as pd\n\n    if training_result !=\
+          \ \"Model training completed\":\n        raise ValueError(\"Training did\
+          \ not complete\")\n\n    model_path = \"/app/models/attrition_model.joblib\"\
+          \n    data_path = \"/app/data/WA_Fn-UseC_-HR-Employee-Attrition.csv\"\n\n\
+          \    if not os.path.exists(model_path):\n        raise FileNotFoundError(\"\
+          Trained model not found\")\n\n    df = pd.read_csv(data_path)\n    y = df[\"\
+          Attrition\"].map({\"Yes\": 1, \"No\": 0})\n\n    if y.isna().any():\n  \
+          \      raise ValueError(\"Unexpected target labels\")\n\n    # Use the same\
+          \ input columns as the training script.\n    X = df.drop(columns=[\"Attrition\"\
+          ])\n    for col in [\"EmployeeNumber\", \"EmployeeCount\", \"Over18\"]:\n\
+          \        if col in X.columns:\n            X = X.drop(columns=col)\n\n \
+          \   model = joblib.load(model_path)\n    predictions = model.predict(X)\n\
+          \n    from sklearn.metrics import accuracy_score\n\n    accuracy = accuracy_score(y,\
+          \ predictions)\n    print(f\"Full-dataset accuracy: {accuracy:.4f}\")\n\n\
+          \    return f\"Evaluation completed; accuracy={accuracy:.4f}\"\n\n"
+        image: employee-attrition-mlops:latest
+    exec-train-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.17.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(validation_result: str) -> str:\n    import os\n\
+          \    import subprocess\n\n    if validation_result != \"Dataset validation\
+          \ passed\":\n        raise ValueError(\"Dataset validation failed\")\n\n\
+          \    subprocess.run([\"python\", \"train.py\"], check=True)\n\n    if not\
+          \ os.path.exists(\"/app/models/attrition_model.joblib\"):\n        raise\
+          \ FileNotFoundError(\"Model was not saved\")\n\n    return \"Model training\
+          \ completed\"\n\n"
+        image: employee-attrition-mlops:latest
+    exec-validate-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - validate_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.17.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef validate_data() -> str:\n    import pandas as pd\n\n    path\
+          \ = \"/app/data/WA_Fn-UseC_-HR-Employee-Attrition.csv\"\n    df = pd.read_csv(path)\n\
+          \n    if \"Attrition\" not in df.columns:\n        raise ValueError(\"Missing\
+          \ Attrition column\")\n\n    if len(df) == 0:\n        raise ValueError(\"\
+          Dataset is empty\")\n\n    print(f\"Rows: {len(df)}\")\n    print(f\"Columns:\
+          \ {len(df.columns)}\")\n\n    return \"Dataset validation passed\"\n\n"
+        image: employee-attrition-mlops:latest
+pipelineInfo:
+  name: employee-attrition-mlops
+root:
+  dag:
+    tasks:
+      evaluate-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-evaluate-model
+        dependentTasks:
+        - train-model
+        inputs:
+          parameters:
+            training_result:
+              taskOutputParameter:
+                outputParameterKey: Output
+                producerTask: train-model
+        taskInfo:
+          name: evaluate-model
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - validate-data
+        inputs:
+          parameters:
+            validation_result:
+              taskOutputParameter:
+                outputParameterKey: Output
+                producerTask: validate-data
+        taskInfo:
+          name: train-model
+      validate-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-validate-data
+        taskInfo:
+          name: validate-data
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.17.0
