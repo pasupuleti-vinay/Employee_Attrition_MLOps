@@ -1,13 +1,12 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN python -m pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY train.py .
-COPY data/ ./data/
+COPY src/ ./src/
+COPY orchestration/ ./orchestration/
+COPY WA_Fn-UseC_-HR-Employee-Attrition.csv .
 
-RUN mkdir -p /app/models
-
-CMD ["python", "train.py"]
+CMD ["python", "src/train.py"]

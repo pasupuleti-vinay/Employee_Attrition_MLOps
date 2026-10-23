@@ -1,6 +1,5 @@
-.venv/
+venv/
 __pycache__/
-.pytest_cache/
-.env
 *.pyc
-local_outputs/
+.env
+.prefect/
